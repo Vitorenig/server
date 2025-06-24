@@ -67,25 +67,18 @@ app.post('/api/create-payment', async (req, res) => {
         return res.status(400).json({ error: 'Token e paymentMethodId obrigatórios para pagamento com cartão.' });
       }
 
-      // ===== CORREÇÃO PRINCIPAL AQUI =====
-      // O campo 'issuer_id' foi removido do body da requisição,
-      // pois o frontend não o envia mais. A SDK do Mercado Pago
-      // consegue inferir o emissor a partir do token do cartão.
       const body = {
         transaction_amount: Number(order.totalValue),
         token,
         description: 'Ingressos para evento',
         installments: Number(installments) || 1,
         payment_method_id: paymentMethodId,
-        // issuer_id: issuerId, // <-- LINHA REMOVIDA
         payer: { 
           email: payer.email,
-          // O CPF já foi usado para gerar o token no frontend,
-          // mas pode ser enviado aqui se necessário para análise de risco.
-          // identification: {
-          //   type: 'CPF',
-          //   number: payer.cpf.replace(/\D/g, '')
-          // }
+          identification: {
+            type: payer.identification.type, // 'CPF'
+            number: payer.identification.number.replace(/\D/g, '') // Apenas números
+          }
         },
       };
       
