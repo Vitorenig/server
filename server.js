@@ -107,6 +107,28 @@ app.post('/api/create-payment', async (req, res) => {
   }
 });
 
+// NOVO ENDPOINT PARA CONSULTAR STATUS DO PAGAMENTO
+app.get('/api/payment-status/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Usando a SDK do Mercado Pago para buscar os detalhes do pagamento pelo ID
+    const paymentDetails = await payment.get({ id });
+    
+    // Retornamos apenas os campos necessários para o frontend
+    res.status(200).json({
+      id: paymentDetails.id,
+      status: paymentDetails.status,
+      status_detail: paymentDetails.status_detail,
+    });
+  } catch (error) {
+    console.error(`Erro ao consultar status do pagamento ${id}:`, error);
+    const statusCode = error.status || 500;
+    const message = error.message || 'Erro ao consultar status do pagamento.';
+    return res.status(statusCode).json({ error: message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor rodando em ${FRONTEND_URL} e escutando na porta ${PORT}`);
 });
