@@ -4,19 +4,16 @@ const cors = require('cors');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 const app = express();
-// Render define a porta pela variável de ambiente PORT. Este código está correto.
-const PORT = process.env.PORT || 4000; 
+const PORT = process.env.PORT || 4000;
 
-// É CRÍTICO que a variável FRONTEND_URL seja configurada no ambiente da Render.
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 app.use(cors({ origin: FRONTEND_URL }));
 app.use(express.json());
 
-// Validação da variável de ambiente do Access Token
 if (!process.env.MP_ACCESS_TOKEN) {
-  console.error("ERRO: A variável de ambiente MP_ACCESS_TOKEN não está definida.");
-  process.exit(1); // Encerra a aplicação se a variável não estiver presente
+  console.error("ERRO CRÍTICO: A variável de ambiente MP_ACCESS_TOKEN não está definida.");
+  process.exit(1);
 }
 
 const client = new MercadoPagoConfig({
@@ -27,11 +24,10 @@ const client = new MercadoPagoConfig({
 const payment = new Payment(client);
 
 app.post('/api/create-payment', async (req, res) => {
+  // Recebe issuerId do frontend
   const {
-    order, payer,
-    paymentMethod,
-    // Removido 'issuerId' pois não é mais enviado pelo frontend
-    token, paymentMethodId, installments 
+    order, payer, paymentMethod,
+    token, paymentMethodId, installments, issuerId 
   } = req.body;
 
   if (!order?.totalValue || !payer?.email || !paymentMethod) {
@@ -64,7 +60,7 @@ app.post('/api/create-payment', async (req, res) => {
 
     } else if (paymentMethod === 'card') {
       if (!token || !paymentMethodId) {
-        return res.status(400).json({ error: 'Token e paymentMethodId obrigatórios para pagamento com cartão.' });
+        return res.status(400).json({ error: 'Token e método de pagamento são obrigatórios para pagamento com cartão.' });
       }
 
       const body = {
@@ -73,11 +69,12 @@ app.post('/api/create-payment', async (req, res) => {
         description: 'Ingressos para evento',
         installments: Number(installments) || 1,
         payment_method_id: paymentMethodId,
+        issuer_id: issuerId, // Repassa o issuer_id para a API do Mercado Pago
         payer: { 
           email: payer.email,
           identification: {
-            type: payer.identification.type, // 'CPF'
-            number: payer.identification.number.replace(/\D/g, '') // Apenas números
+            type: payer.identification.type,
+            number: payer.identification.number.replace(/\D/g, '')
           }
         },
       };
@@ -94,21 +91,16 @@ app.post('/api/create-payment', async (req, res) => {
     }
   } catch (error) {
     console.error('Erro ao criar pagamento:', error.cause || error);
-    const statusCode = error.status || 500;
-    const message = error.message || 'Ocorreu um erro interno ao processar o pagamento.';
-    return res.status(statusCode).json({ error: message });
+    // Retorna a mensagem de erro específica do Mercado Pago, se disponível
+    const message = error.cause?.[0]?.description || error.message || 'Ocorreu um erro interno ao processar o pagamento.';
+    return res.status(400).json({ error: message });
   }
 });
 
-// NOVO ENDPOINT PARA CONSULTAR STATUS DO PAGAMENTO
 app.get('/api/payment-status/:id', async (req, res) => {
   const { id } = req.params;
-
   try {
-    // Usando a SDK do Mercado Pago para buscar os detalhes do pagamento pelo ID
     const paymentDetails = await payment.get({ id });
-    
-    // Retornamos apenas os campos necessários para o frontend
     res.status(200).json({
       id: paymentDetails.id,
       status: paymentDetails.status,
@@ -117,11 +109,11 @@ app.get('/api/payment-status/:id', async (req, res) => {
   } catch (error) {
     console.error(`Erro ao consultar status do pagamento ${id}:`, error);
     const statusCode = error.status || 500;
-    const message = error.message || 'Erro ao consultar status do pagamento.';
+    const message = 'Erro ao consultar status do pagamento.';
     return res.status(statusCode).json({ error: message });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor rodando em ${FRONTEND_URL} e escutando na porta ${PORT}`);
+  console.log(`Servidor rodando e escutando na porta ${PORT}`);
 });
